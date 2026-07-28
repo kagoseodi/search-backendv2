@@ -1,0 +1,41 @@
+databases:
+  - name: search-engine-db
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  # Handles search requests and serves the frontend. Never crawls in-process,
+  # so a heavy crawl run can't slow down or time out a search.
+  - type: web
+    name: search-engine-web
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: search-engine-db
+          property: connectionString
+      - key: ADMIN_TOKEN
+        generateValue: true
+
+  # Runs the crawl loop continuously. Separate service so it can be scaled,
+  # paused, or restarted independently of the web service.
+  - type: worker
+    name: search-engine-crawler
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run worker
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: search-engine-db
+          property: connectionString
+      - key: CRAWL_PAGE_BUDGET
+        value: "50"
+      - key: CRAWL_MAX_PAGES_PER_DOMAIN
+        value: "200"
+      - key: CRAWL_MIN_DELAY_MS
+        value: "300"
